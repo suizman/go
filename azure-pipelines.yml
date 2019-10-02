@@ -1,0 +1,75 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+variables:
+  GOPATH: '$(system.defaultWorkingDirectory)/gopath' # Go workspace path
+  GOBIN:  '$(GOPATH)/bin' # Go binaries path
+  GOROOT: '$(Agent.BuildDirectory)/go' # Go installation path
+  GOROOT_BOOTSTRAP: $(GOROOT)
+
+jobs:
+- job: BuildARM7
+  pool:
+    vmImage: 'ubuntu-latest'
+  variables: 
+    GOOS: linux
+    GOARCH: arm64
+    GOARM: 7
+  steps:
+  - script: |
+      echo $GOBIN $GOPATH $GOROOT
+      wget "https://dl.google.com/go/go1.13.1.linux-amd64.tar.gz" --output-document "$(Agent.BuildDirectory)/go1.13.1.tar.gz"
+      tar -C '$(Agent.BuildDirectory)' -xzf "$(Agent.BuildDirectory)/go1.13.1.tar.gz"
+      $(GOROOT)/bin/go version
+    displayName: 'Install Go 1.13.1'
+  - script: |
+      cd $(build.sourcesDirectory)/src
+      ./make.bash
+    displayName: 'Build Go from src'
+  - task: ArchiveFiles@2
+    displayName: Archive Completed Build Directory
+    inputs:
+      rootFolderOrFile: bin/$(GOOS)_$(GOARCH)/
+      includeRootFolder: true
+      archiveFile: $(Build.ArtifactStagingDirectory)/$(GOOS)_$(GOARCH)_$(GOARM).zip
+  - task: PublishBuildArtifacts@1
+    displayName: Publish Completed Build Directory Archive Build Artifact
+    inputs:
+      pathtoPublish: $(Build.ArtifactStagingDirectory)/$(GOOS)_$(GOARCH)_$(GOARM).zip
+      artifactName: Linux arm64
+- job: BuildAMD64
+  pool:
+    vmImage: 'ubuntu-latest'
+  variables: 
+    GOOS: linux
+    GOARCH: amd64
+  steps:
+  - script: |
+      echo $GOBIN $GOPATH $GOROOT
+      wget "https://dl.google.com/go/go1.13.1.linux-amd64.tar.gz" --output-document "$(Agent.BuildDirectory)/go1.13.1.tar.gz"
+      tar -C '$(Agent.BuildDirectory)' -xzf "$(Agent.BuildDirectory)/go1.13.1.tar.gz"
+      $(GOROOT)/bin/go version
+    displayName: 'Install Go 1.13.1'
+  - script: |
+      cd $(build.sourcesDirectory)/src
+      ./make.bash
+      mkdir $(build.sourcesDirectory)/bin/$(GOOS)_$(GOARCH)
+      mv $(build.sourcesDirectory)/bin/go $(build.sourcesDirectory)/bin/$(GOOS)_$(GOARCH)/
+      mv $(build.sourcesDirectory)/bin/gofmt $(build.sourcesDirectory)/bin/$(GOOS)_$(GOARCH)/
+    displayName: 'Build Go from src'
+  - task: ArchiveFiles@2
+    displayName: Archive Completed Build Directory
+    inputs:
+      rootFolderOrFile: bin/$(GOOS)_$(GOARCH)/
+      includeRootFolder: true
+      archiveFile: $(Build.ArtifactStagingDirectory)/$(GOOS)_$(GOARCH).zip
+  - task: PublishBuildArtifacts@1
+    displayName: Publish Completed Build Directory Archive Build Artifact
+    inputs:
+      pathtoPublish: $(Build.ArtifactStagingDirectory)/$(GOOS)_$(GOARCH).zip
+      artifactName: Linux $(GOARCH)
